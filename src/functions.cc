@@ -1,41 +1,63 @@
+// functions.cpp
 #include "functions.hpp"
-
+#include "office-hours-queue.hpp"
+#include "staff.hpp"
+#include "student.hpp"
 #include <iostream>
 #include <random>
+#include <vector>
 
-constexpr int kRandomMin = 5;
-constexpr int kRandomMax = 20;
+// Helper: return true if 'a' has higher priority than 'b' for student queue
+static bool StudentHigherPriority(const Student& a, const Student& b) {
+  if (a.attendance_percentage > b.attendance_percentage) return true;
+  if (a.attendance_percentage < b.attendance_percentage) return false;
+  // tie: earlier arrival_order (smaller) has higher priority
+  return a.arrival_order < b.arrival_order;
+}
+
+// Helper: return true if 'a' has higher priority than 'b' for staff queue
+static bool StaffHigherPriority(const Staff& a, const Staff& b) {
+  if (a.encounter_count < b.encounter_count) return true;
+  if (a.encounter_count > b.encounter_count) return false;
+  if (a.total_help_time < b.total_help_time) return true;
+  if (a.total_help_time > b.total_help_time) return false;
+  // tie: earlier arrival_order (smaller) has higher priority
+  return a.arrival_order < b.arrival_order;
+}
 
 void AddStudent(OfficeHoursQueue& queue, const Student& student) {
-  queue.student_queue.push_back(student);
-  queue.student_queue.back().arrival_order = queue.student_arrival_counter;
-  queue.student_arrival_counter += 1;
+  // copy so we can set arrival_order
+  Student s = student;
+  s.arrival_order = queue.student_arrival_counter++;
+  queue.student_queue.push_back(s);
+
+  // bubble new student left until in correct position
+  int i = static_cast<int>(queue.student_queue.size()) - 1;
+  while (i > 0) {
+    if (StudentHigherPriority(queue.student_queue[i], queue.student_queue[i - 1])) {
+      // swap manually (allowed headers only)
+      Student tmp = queue.student_queue[i - 1];
+      queue.student_queue[i - 1] = queue.student_queue[i];
+      queue.student_queue[i] = tmp;
+      --i;
+    } else {
+      break;
+    }
+  }
 }
 
 void AddStaff(OfficeHoursQueue& queue, const Staff& staff) {
-  queue.staff_queue.push_back(staff);
-  queue.staff_queue.back().arrival_order = queue.staff_arrival_counter;
-  queue.staff_arrival_counter += 1;
+  Staff s = staff;
+  s.arrival_order = queue.staff_arrival_counter++;
+  queue.staff_queue.push_back(s);
 
-  unsigned int index = queue.staff_queue.size() - 1;
-  while (index > 0) {
-    const Staff& current = queue.staff_queue[index];
-    const Staff& previous = queue.staff_queue[index - 1];
-
-    if (current.encounter_count > previous.encounter_count) {
-      Staff temp = queue.staff_queue[index - 1];
-      queue.staff_queue[index - 1] = queue.staff_queue[index];
-      queue.staff_queue[index] = temp;
-      index--;
-    } else if (current.encounter_count == previous.encounter_count) {
-      if (current.arrival_order > previous.arrival_order) {
-        Staff temp = queue.staff_queue[index - 1];
-        queue.staff_queue[index - 1] = queue.staff_queue[index];
-        queue.staff_queue[index] = temp;
-        index--;
-      } else {
-        break;
-      }
+  int i = static_cast<int>(queue.staff_queue.size()) - 1;
+  while (i > 0) {
+    if (StaffHigherPriority(queue.staff_queue[i], queue.staff_queue[i - 1])) {
+      Staff tmp = queue.staff_queue[i - 1];
+      queue.staff_queue[i - 1] = queue.staff_queue[i];
+      queue.staff_queue[i] = tmp;
+      --i;
     } else {
       break;
     }
@@ -43,37 +65,10 @@ void AddStaff(OfficeHoursQueue& queue, const Staff& staff) {
 }
 
 void HelpNextStudent(OfficeHoursQueue& queue) {
-  if (queue.student_queue.empty()) {
-    std::cout << "No students in queue.\n";
-    return;
-  }
-  if (queue.staff_queue.empty()) {
-    std::cout << "No staff available.\n";
+  // If either queue empty, nothing to do.
+  if (queue.student_queue.empty() || queue.staff_queue.empty()) {
     return;
   }
 
-  Student student = queue.student_queue[0];
-  queue.student_queue.erase(queue.student_queue.begin());
-
-  // Generate random help time between kRandomMin and kRandomMax minutes
-  static std::random_device rd;
-  static std::mt19937 gen(rd());
-  std::uniform_int_distribution<> dist(kRandomMin, kRandomMax);
-  int help_time = dist(gen);
-
-  Staff staff = queue.staff_queue[queue.staff_queue.size() - 1];
-  staff.encounter_count++;
-  staff.total_help_time += help_time;
-  AddStaff(queue, staff);
-
-  std::cout << "Staff " << staff.name << " helped student " << student.name
-            << " for " << help_time << " minutes.\n";
-}
-
-bool IsStudentQueueEmpty(const OfficeHoursQueue& queue) {
-  return queue.student_queue.empty();
-}
-
-bool IsStaffQueueEmpty(const OfficeHoursQueue& queue) {
-  return queue.staff_queue.empty();
-}
+  // Pop the student from the front (index 0)
+  Student next_student = queue.student_queue.front();
