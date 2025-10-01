@@ -72,3 +72,34 @@ void HelpNextStudent(OfficeHoursQueue& queue) {
 
   // Pop the student from the front (index 0)
   Student next_student = queue.student_queue.front();
+  queue.student_queue.erase(queue.student_queue.begin());
+
+  // Pop the staff from the front (index 0)
+  Staff staff_member = queue.staff_queue.front();
+  queue.staff_queue.erase(queue.staff_queue.begin());
+
+  // Simulate help time (in minutes). Use 1..60 inclusive as a reasonable range.
+  static std::random_device rd;
+  static std::mt19937 gen(rd());
+  std::uniform_int_distribution<int> dist(1, 60);
+  int help_minutes = dist(gen);
+
+  // Update staff stats
+  staff_member.total_help_time += help_minutes;
+  staff_member.encounter_count += 1;
+
+  // Reinsert staff member into the staff queue with updated stats.
+  // This will assign a new arrival_order (they re-join the queue now).
+  AddStaff(queue, staff_member);
+
+  // (The student is done and not re-added)
+  (void)next_student; // silence unused variable warnings if any build system expects it
+}
+
+bool IsStudentQueueEmpty(const OfficeHoursQueue& queue) {
+  return queue.student_queue.empty();
+}
+
+bool IsStaffQueueEmpty(const OfficeHoursQueue& queue) {
+  return queue.staff_queue.empty();
+}
